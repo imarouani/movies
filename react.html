@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chat client</title>
+  <!-- Pico CSS is commented out -->
+  <!-- <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css" /> -->
+  <!-- Custom stylesheet -->
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="channels.css" />
+
+  <style>
+    /* Make sure we use the full viewport height and remove the default margin */
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    /* Use flexbox so the layout fills the screen */
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+    /* Let the main area take up the remaining space */
+    main {
+      flex: 1;
+    }
+    /* Styling for individual messages */
+    .message {
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .message-header {
+      display: flex;
+      justify-content: space-between;
+    }
+    .sender {
+      font-weight: bold;
+    }
+    .like-btn {
+      cursor: pointer;
+      margin-left: 0.5rem;
+    }
+    /* Styling for the dialog where you enter your name */
+    dialog {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 400px;
+      max-width: 90%;
+      padding: 2rem;
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    /* Top window style */
+    .top-window {
+      position: sticky;
+      top: 20px;
+      background: rgba(255, 255, 255, 0.6);
+      z-index: 200;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    /* Style for the messages count bubble */
+    .messages-count {
+      font-size: 0.8rem;
+      background: #eee;
+      border-radius: 4px;
+      padding: 0.2rem 0.4rem;
+      margin-left: 0.5rem;
+    }
+    /* Red text for unread messages indicator */
+    .unread-indicator {
+      font-size: 0.8rem;
+      color: red;
+      margin-left: 0.5rem;
+    }
+    /* Fixed position for the logout button */
+    .logout-button {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  
+  <script type="text/babel">
+    ////////////////////////////////////////////////////////////////////////////////
+    // Some common style objects used all over the app
+    ////////////////////////////////////////////////////////////////////////////////
+    const commonInputStyle = { padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' };
+    const senderInputStyle = { ...commonInputStyle, padding: '0.25rem', marginLeft: '0.5rem' };
+    const sendButtonStyle = {
+      width: '100%',
+      padding: '0.5rem 1rem',
+      border: 'none',
+      borderRadius: '4px',
+      background: '#007bff',
+      color: '#fff',
+      cursor: 'pointer'
+    };
+    const inputContainerStyle = {
+      position: 'sticky',
+      top: '60px',
+      background: '#fff',
+      padding: '0.75rem 1rem',
+      zIndex: 101,
+      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+    };
+    const menuStyle = {
+      position: 'absolute',
+      right: 0,
+      background: 'white',
+      border: '1px solid #ccc',
+      padding: '0.5rem'
+    };
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // Helper function: Formats message text with a bit of markup magic
+    ////////////////////////////////////////////////////////////////////////////////
+    function formatMessage(text) {
+      return text
+        .replace(/\[nop\]_(.*?)_\[\/nop\|/g, '<strong>$1</strong>')
+        .replace(/\[nop\]\*(.*?)\*\[\/nop\]/g, '<em>$1</em>')
+        .replace(/\[nop\]~(.*?)~\[\/nop\]/g, '<u>$1</u>')
+        .replace(/\[nop\]-(.*?)-\[\/nop\]/g, '<del>$1</del>')
+        .replace(/\[nop\]`(.*?)`\[\/nop\]/g, '<code>$1</code>');
+    }
+  
+    ////////////////////////////////////////////////////////////////////////////////
+    // Component: NameDialog
+    // Pops up a little dialog asking for your name, and clears old read counts on login.
+    ////////////////////////////////////////////////////////////////////////////////
+    function NameDialog({ name, setName }) {
+      return (
+        <dialog open>
+          <article>
+            <header>
+              <p><strong>What's your name?</strong></p>
+            </header>
+            <p>
+              <input 
+                type="text" 
+                onKeyDown={({ key, target }) => { 
+                  if (key === 'Enter') { 
+                    localStorage.removeItem('readCounts');
+                    setName(target.value); 
+                  }
+                }} 
+              />
+            </p>
+          </article>
+        </dialog>
+      );
+    }
+  
+    ////////////////////////////////////////////////////////////////////////////////
+    // Component: ChannelItem
+    // Renders a button for a channel showing total and unread messages.
+    // Keeps checking for new messages every few seconds.
+    ////////////////////////////////////////////////////////////////////////////////
+    function ChannelItem({ channel, onSelectChannel, readCounts }) {
+      const channelKey = channel.id || channel.endpoint;
+      const [totalCount, setTotalCount] = React.useState(0);
+      const AUTH_HEADER = 'authkey 0987654321';
+  
+      React.useEffect(() => {
+        const fetchMessageCount = () => {
+          fetch(channel.endpoint, { headers: { 'Authorization': AUTH_HEADER } })
+            .then(res => res.json())
+            .then(data => {
+              const count = Array.isArray(data) ? data.length : 0;
+              setTotalCount(count);
+            })
+            .catch(err => {
+              console.error(`Error fetching messages for ${channel.name}:`, err);
+              setTotalCount(0);
+            });
+        };
+        fetchMessageCount();
+        const interval = setInterval(fetchMessageCount, 3000);
+        return () => clearInterval(interval);
+      }, [channel.endpoint, channel.name]);
+  
+      const readCount = (readCounts[channelKey] !== undefined) ? readCounts[channelKey] : 0;
+      const unread = totalCount - readCount;
+  
+      return (
+        <li key={channelKey}>
+          <button 
+            onClick={() => onSelectChannel(channel, totalCount)}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <span>{channel.name}</span>
+            <span>
+              <span className="messages-count">{totalCount}</span>
+              {unread > 0 && <span className="unread-indicator">unread: {unread}</span>}
+            </span>
+          </button>
+        </li>
+      );
+    }
+  
+    ////////////////////////////////////////////////////////////////////////////////
+    // Component: ChannelList
+    // Fetches and displays the list of channels. You can also search through them.
+    ////////////////////////////////////////////////////////////////////////////////
+    function ChannelList({ onSelectChannel, hideSearch, query: propQuery, setQuery: propSetQuery, readCounts }) {
+      const [channels, setChannels] = React.useState([]);
+      const [internalQuery, setInternalQuery] = React.useState('');
+      const query = propQuery !== undefined ? propQuery : internalQuery;
+      const setQuery = propSetQuery !== undefined ? propSetQuery : setInternalQuery;
+  
+      React.useEffect(() => {
+        const fetchChannels = () => {
+          fetch('http://vm146.rz.uos.de/hub/channels')
+            .then(response => response.json())
+            .then(data => setChannels(data.channels || []))
+            .catch(err => console.error('Error fetching channels:', err));
+        };
+        fetchChannels();
+        const interval = setInterval(fetchChannels, 3000);
+        return () => clearInterval(interval);
+      }, []);
+  
+      const filteredChannels = channels.filter(ch =>
+        ch.name.toLowerCase().includes(query.toLowerCase())
+      );
+  
+      return (
+        <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 150px)' }}>
+          {!hideSearch && (
+            <input
+              type="text"
+              placeholder="Search channels..."
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              style={{ position: 'sticky', top: '150px', background: 'white', zIndex: 100 }}
+            />
+          )}
+          <ul>
+            {filteredChannels.map(channel => (
+              <ChannelItem key={channel.id || channel.endpoint} channel={channel} onSelectChannel={onSelectChannel} readCounts={readCounts} />
+            ))}
+          </ul>
+        </div>
+      );
+    }
+  
+    ////////////////////////////////////////////////////////////////////////////////
+    // Component: ChannelMessages
+    // The chat area for a selected channel.
+    // Loads messages, sends new ones, lets you like messages, and even reset the channel.
+    ////////////////////////////////////////////////////////////////////////////////
+    function ChannelMessages({ channel, onBack, onLogout }) {
+      const [messages, setMessages] = React.useState([]);
+      const [content, setContent] = React.useState('');
+      const [sender, setSender] = React.useState('');
+      const [loading, setLoading] = React.useState(false);
+      const BASE_URL = channel.endpoint;
+      const AUTH_HEADER = 'authkey 0987654321';
+  
+      React.useEffect(() => { loadMessages(); }, []);
+  
+      async function loadMessages() {
+        setLoading(true);
+        try {
+          const res = await fetch(BASE_URL, { headers: { 'Authorization': AUTH_HEADER } });
+          if (!res.ok) throw new Error(`Error fetching messages: ${res.status}`);
+          setMessages(await res.json());
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setLoading(false);
+        }
+      }
+  
+      async function sendMessage(e) {
+        e.preventDefault();
+        if (!content.trim()) return;
+        setLoading(true);
+        try {
+          await fetch(BASE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': AUTH_HEADER },
+            body: JSON.stringify({
+              content, sender,
+              timestamp: new Date().toISOString(),
+              category: 'Other',
+              movie: 'Unknown',
+              likes: 0
+            })
+          });
+          setContent('');
+          loadMessages();
+        } catch (err) {
+          console.error('Error sending message:', err);
+        } finally {
+          setLoading(false);
+        }
+      }
+  
+      async function likeMessage(messageId) {
+        setLoading(true);
+        try {
+          const res = await fetch(`${BASE_URL}/like_message/${messageId}`, {
+            method: 'POST',
+            headers: { 'Authorization': AUTH_HEADER }
+          });
+          if (!res.ok) throw new Error(`Error liking message: ${res.status}`);
+          const data = await res.json();
+          if (data.success) {
+            setMessages(prev => prev.map(m => m.id === messageId ? { ...m, likes: data.likes } : m));
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setLoading(false);
+        }
+      }
+  
+      async function resetChannel() {
+        setLoading(true);
+        try {
+          const res = await fetch(`${BASE_URL}/reset_channel`, {
+            method: 'POST',
+            headers: { 'Authorization': AUTH_HEADER }
+          });
+          if (!res.ok) throw new Error(`Error resetting channel: ${res.status}`);
+          setMessages([]);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setLoading(false);
+        }
+      }
+  
+      return (
+        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <ChannelActionsMenu 
+            onBack={onBack} 
+            onReset={resetChannel} 
+            onRefresh={loadMessages} 
+            onLogout={onLogout}
+            loading={loading} 
+          />
+          <form onSubmit={sendMessage} className="message-form">
+            <label>
+              Message:
+              <input 
+                type="text" 
+                value={content} 
+                onChange={e => setContent(e.target.value)} 
+                required 
+                className="message-input"
+              />
+            </label>
+            <label>
+              Sender:
+              <input 
+                type="text" 
+                value={sender} 
+                onChange={e => setSender(e.target.value)} 
+                className="sender-input"
+                placeholder="Leave this blank if you want to stay anonymous..."
+              />
+            </label>
+            <button type="submit" className="send-button">Send</button>
+          </form>
+          <div style={{ marginTop: '1rem', overflowY: 'auto', flexGrow: 1 }}>
+            {messages.length === 0 ? (
+              <p>No messages found.</p>
+            ) : (
+              <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
+                {messages.map((msg, index) => (
+                  <li key={msg.id} className="message">
+                    <div className="message-header">
+                      <span className="sender">{msg.sender}</span>
+                      <span>{msg.timestamp}</span>
+                    </div>
+                    <div dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />
+                    {channel.name === "Coxi Movies" && index !== 0 && (
+                      <p>
+                        Likes: {msg.likes || 0}
+                        <span className="like-btn" onClick={() => likeMessage(msg.id)}>❤️</span>
+                      </p>
+                    )}
+                    {msg.bot_response && msg.bot_response.trim() !== '' && (
+                      <p style={{ fontStyle: 'italic' }}>BOT: {msg.bot_response}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      );
+    }
+  
+    ////////////////////////////////////////////////////////////////////////////////
+    // Component: ChannelActionsMenu
+    // A simple hamburger menu for actions like going back, resetting, refreshing, or logging out.
+    ////////////////////////////////////////////////////////////////////////////////
+    function ChannelActionsMenu({ onBack, onReset, onRefresh, onLogout, loading }) {
+      const [open, setOpen] = React.useState(false);
+      return (
+        <div style={{ position: 'fixed', top: '40px', right: '10px', zIndex: 1000 }}>
+          <button onClick={() => setOpen(!open)} style={{ fontSize: '24px' }}>☰</button>
+          {open && (
+            <div style={menuStyle}>
+              <button onClick={() => { setOpen(false); onBack(); }}>Back to Channels</button>
+              <button onClick={() => { setOpen(false); onReset(); }}>Reset</button>
+              <button onClick={() => { setOpen(false); onRefresh(); }}>
+                {loading ? 'Loading...' : 'Refresh'}
+              </button>
+              <button onClick={() => { setOpen(false); onLogout(); }}>Logout</button>
+            </div>
+          )}
+        </div>
+      );
+    }
+  
+    ////////////////////////////////////////////////////////////////////////////////
+    // Component: LogoutButton
+    // A fixed logout button at the bottom right of the screen.
+    ////////////////////////////////////////////////////////////////////////////////
+    function LogoutButton({ onClick }) {
+      return (
+        <button onClick={onClick} className="logout-button">
+          Logout
+        </button>
+      );
+    }
+  
+    ////////////////////////////////////////////////////////////////////////////////
+    // Component: Container
+    // Manages your username, channel selection, and keeps track of read messages.
+    ////////////////////////////////////////////////////////////////////////////////
+    function Container() {
+      const [name, setName] = React.useState(() => localStorage.getItem('username') || '');
+      const [selectedChannel, setSelectedChannel] = React.useState(null);
+      const [query, setQuery] = React.useState('');
+      const [readCounts, setReadCounts] = React.useState(() => {
+        const stored = localStorage.getItem('readCounts');
+        return stored ? JSON.parse(stored) : {};
+      });
+  
+      // Save your read counts and username to localStorage
+      React.useEffect(() => {
+        localStorage.setItem('readCounts', JSON.stringify(readCounts));
+      }, [readCounts]);
+  
+      React.useEffect(() => {
+        localStorage.setItem('username', name);
+      }, [name]);
+  
+      // Clears username and read counts when you log out
+      function handleLogout() {
+        localStorage.removeItem('username');
+        localStorage.removeItem('readCounts');
+        setName('');
+        setSelectedChannel(null);
+        setQuery('');
+        setReadCounts({});
+      }
+  
+      if (!name) return <NameDialog name={name} setName={setName} />;
+  
+      return (
+        <div>
+          {selectedChannel ? (
+            <div style={{ textAlign: 'center' }}>
+              <h1>Hello, {name}! Welcome to {selectedChannel.name}.</h1>
+              <ChannelMessages 
+                channel={selectedChannel} 
+                onBack={() => setSelectedChannel(null)}
+                onLogout={handleLogout}
+              />
+            </div>
+          ) : (
+            <div>
+              <LogoutButton onClick={handleLogout} />
+              <div className="top-window">
+                <div style={{ width: '100%', display: 'flex', alignItems: 'center' }}>
+                  <h1 style={{ margin: 0, flex: 1, textAlign: 'center' }}>Channel Hub</h1>
+                </div>
+                <h3 style={{ margin: '0.5rem 0', textAlign: 'center' }}>
+                  Hello, {name}! Here you can see all the channels available.
+                </h3>
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Search channels..." 
+                    value={query} 
+                    onChange={e => setQuery(e.target.value)} 
+                    style={{ maxWidth: '300px', width: '100%' }} 
+                  />
+                </div>
+              </div>
+              <ChannelList 
+                onSelectChannel={(channel, totalCount) => {
+                  const channelKey = channel.id || channel.endpoint;
+                  setReadCounts(prev => ({ ...prev, [channelKey]: totalCount }));
+                  setSelectedChannel(channel);
+                }}
+                hideSearch={true}
+                query={query}
+                setQuery={setQuery}
+                readCounts={readCounts}
+              />
+            </div>
+          )}
+        </div>
+      );
+    }
+  
+    ////////////////////////////////////////////////////////////////////////////////
+    // Render the app into the #root element
+    ////////////////////////////////////////////////////////////////////////////////
+    ReactDOM.render(
+      <div>
+        <header className="fixed-above-lg"></header>
+        <main className="container">
+          <div id="content">
+            <section>
+              <Container />
+            </section>
+          </div>
+        </main>
+        <footer>AI and the Web 2025</footer>
+      </div>,
+      document.getElementById('root')
+    );
+  </script>
+</body>
+</html>
