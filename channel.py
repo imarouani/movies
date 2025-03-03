@@ -18,11 +18,11 @@ CORS(app)  # Enable CORS for all routes
 app.config.from_object(__name__ + '.ConfigClass')  # configuration
 app.app_context().push()  # create an app context before initializing db
 
-HUB_URL = 'http://vm146.rz.uni-osnabrueck.de/hub'
-HUB_AUTHKEY = 'Crr-K24d-2N'
+HUB_URL = 'http://localhost:5555'
+HUB_AUTHKEY = '1234567890'
 CHANNEL_AUTHKEY = '0987654321'
 CHANNEL_NAME = "Coxi Movies"
-CHANNEL_ENDPOINT = 'http://vm146.rz.uni-osnabrueck.de/u051/channel.wsgi'
+CHANNEL_ENDPOINT = "http://localhost:5001"
 CHANNEL_FILE = 'messages.json'
 CHANNEL_TYPE_OF_SERVICE = 'aiweb24:chat'
 
@@ -102,11 +102,8 @@ def home_page():
             'id': '000',
             'content': 'Welcome to Coxi Movies! Tell us about your favorite coxi related movie.',
             'sender': 'Welcome Message',
-            'timestamp': datetime.now().isoformat(),
             'category': None,
             'movie': None,
-            'likes': 0,
-            'bot_response': ''
         }
 
     # appending the welcome message
@@ -154,7 +151,6 @@ def send_message():
         'category': message.get('category', 'Other'),
         'movie': message.get('movie', 'Unknown'),
         'likes': message.get('likes', 0),
-        'bot_response': bot_response
     }
     messages.insert(0, user_message)
 
@@ -167,7 +163,6 @@ def send_message():
         'category': None,
         'movie': None,
         'likes': 0,
-        'bot_response': ''                  # Usually empty or None for the bot itself
     }
 
     messages.insert(1, bot_message)
