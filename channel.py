@@ -18,8 +18,8 @@ CORS(app)  # Enable CORS for all routes
 app.config.from_object(__name__ + '.ConfigClass')  # configuration
 app.app_context().push()  # create an app context before initializing db
 
-HUB_URL = 'http://localhost:5555'
-HUB_AUTHKEY = '1234567890'
+HUB_URL = 'http://vm146.rz.uni-osnabrueck.de/hub'
+HUB_AUTHKEY = 'Crr-K24d-2N'
 CHANNEL_AUTHKEY = '0987654321'
 CHANNEL_NAME = "Coxi Movies"
 CHANNEL_ENDPOINT = "http://localhost:5001"
