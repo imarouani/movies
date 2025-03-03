@@ -1,0 +1,243 @@
+/* =========================
+   GLOBAL STYLES
+========================= */
+
+/* Reset default browser styles for consistency and apply Lato font globally */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Lato', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    font-weight: 300;
+}
+
+/* Full-Screen Background with Pastel Gradient */
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    background: linear-gradient(135deg, #ffc0cb, #add8e6, #90ee90);
+    color: #333;
+    line-height: 1.6;
+}
+
+/* Semi-Transparent Overlay for Better Text Visibility */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.6);
+    z-index: -1;
+}
+
+/* =========================
+   LAYOUT & CONTAINERS
+========================= */
+
+/* Container for main content */
+.container {
+    padding: 20px;
+}
+
+/* Header & Footer styling */
+header, footer {
+    background-color: #fff;
+    text-align: center;
+    padding: 1rem;
+}
+
+/* =========================
+   MESSAGE STYLING
+========================= */
+
+.message {
+    background-color: #dfdcf8; /* light pastel pink */
+    color: #333;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    border: 1px solid #ffccd5;
+}
+
+.message:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* Message header: displays sender and timestamp */
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+/* Sender styling */
+.sender {
+    font-weight: bold;
+}
+
+/* Like button styling */
+.like-btn {
+    cursor: pointer;
+    margin-left: 0.5rem;
+}
+
+/* =========================
+   FORM & DIALOG STYLING
+========================= */
+
+/* Basic styling for input elements if not overridden by more specific styles */
+input, textarea, select {
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    /* Removed fixed width to allow flexibility */
+    width: 100%;
+}
+
+/* Dialog styling for the NameDialog component */
+dialog {
+    border: none;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 400px;
+}
+
+/* Button styling (applied to all buttons) */
+button {
+    cursor: pointer;
+    border: none;
+    background: #b3a7f5;  /* Springy blue-purple */
+    color: #333;
+    padding: 1rem 1.5rem;
+    font-size: 1.25rem;
+    border-radius: 4px;
+    transition: background 0.3s ease;
+}
+
+button:hover {
+    background: #d1c4ff;  /* Lighter blue-purple on hover */
+}
+
+/* =========================
+   CHANNEL LIST STYLING
+========================= */
+
+/* Styling for channel buttons in the ChannelList component */
+.channel-list-button {
+    font-size: 1.25rem;          /* Bigger text */
+    padding: 1rem 1.5rem;         /* More padding for a larger button */
+    border: 2px solid #b3a7f5;    /* Blue-purple border */
+    border-radius: 8px;           /* Rounded corners */
+    background: #fff;
+    color: #333;
+    width: 100%;
+    margin-bottom: 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.channel-list-button:hover {
+    background: #e8e5ff;  /* Subtle light blue-purple tint */
+    transform: scale(1.02);
+}
+
+/* =========================
+   CHANNEL ACTIONS MENU
+========================= */
+
+.channel-actions-menu {
+    position: absolute;
+    right: 0;
+    background: #fff;
+    border: 1px solid #b3a7f5;
+    padding: 0.5rem;
+}
+
+/* Top window styling */
+.top-window {
+    position: sticky;
+    top: 20px;
+    background: rgba(255, 255, 255, 0.6);  /* Semi-transparent white */
+    z-index: 200;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* =========================
+   MESSAGE FORM STYLING
+========================= */
+
+/* Container for the message form */
+.message-form {
+    margin-top: 2rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+/* Style for labels in the message form */
+.message-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+}
+
+/* Style for the message input field */
+.message-form .message-input {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+/* Style for the sender input field */
+.message-form .sender-input {
+    width: 50%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    display: block;
+    margin: 1rem auto;
+}
+
+/* Style for the send button */
+.message-form .send-button {
+    display: block;
+    margin: 0 auto;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    border: none;
+    background: #b3a7f5;
+    color: #333;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+}
+
+.message-form .send-button:hover {
+    background: #d1c4ff;
+    transform: scale(1.02);
+}
+
+  
+
+
+
